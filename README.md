@@ -4,7 +4,13 @@ Three AI couriers race to make three deliveries across a toy city before the bat
 
 Built for NEAR HACKATHON, Games With Real Economies track.
 
+**Play it now: https://fiasco.onrender.com** (no keys, no wallet, no sign-up)
+
 ## Play it
+
+The live game is at https://fiasco.onrender.com, writing to the testnet contract.
+
+To run it locally:
 
 ```bash
 npm install
