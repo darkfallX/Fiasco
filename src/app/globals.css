@@ -1,0 +1,128 @@
+@import "tailwindcss";
+
+:root {
+  --paper: #EFE8D8;
+  --card: #F7F2E6;
+  --inset: #E6DDC8;
+  --rule: #CDC3AC;
+  --ink: #1A1915;
+  --ink-2: #5E584B;
+  --ink-3: #8A8372;
+  --yes: #1F7A4D;
+  --no: #C22A1C;
+  --warn: #E2A400;
+}
+
+html,
+body {
+  background-color: var(--paper);
+}
+
+body {
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  color: var(--ink);
+}
+
+.font-display {
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.01em;
+}
+
+.font-mono-num {
+  font-family: var(--font-mono), ui-monospace, SFMono-Regular, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+button {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: not-allowed;
+}
+
+/* Stage labels are positioned imperatively from the WebGL loop */
+.stage-tag {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  white-space: nowrap;
+  will-change: transform;
+  font-family: var(--font-display), sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  line-height: 1;
+  letter-spacing: 0.04em;
+}
+
+@keyframes slam {
+  0% {
+    transform: translateY(-140%);
+  }
+  12% {
+    transform: translateY(0);
+  }
+  86% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(-140%);
+  }
+}
+.anim-slam {
+  animation: slam 2.6s cubic-bezier(0.2, 0.9, 0.2, 1) both;
+}
+
+@keyframes rise {
+  from {
+    transform: translateY(18px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+.anim-rise {
+  animation: rise 0.36s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes flip {
+  from {
+    transform: scaleY(0.1);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+.anim-flip {
+  display: inline-block;
+  animation: flip 0.22s ease-out both;
+}
+
+@keyframes skeleton {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+.skeleton {
+  background-color: var(--inset);
+  animation: skeleton 1.1s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-slam,
+  .anim-rise,
+  .anim-flip,
+  .skeleton {
+    animation-duration: 0.01s;
+  }
+}

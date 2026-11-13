@@ -1,0 +1,669 @@
+{
+  "duration": 90,
+  "fps": 30,
+  "vo": [
+    {
+      "id": "01",
+      "t": 1.6,
+      "text": "This is a simple delivery job."
+    },
+    {
+      "id": "02",
+      "t": 6.3,
+      "text": "Three AI couriers. Three packages. One small city."
+    },
+    {
+      "id": "03",
+      "t": 12.5,
+      "text": "It never goes simply."
+    },
+    {
+      "id": "04",
+      "t": 16.3,
+      "text": "Roads close."
+    },
+    {
+      "id": "05",
+      "t": 19.2,
+      "text": "Batteries die."
+    },
+    {
+      "id": "06",
+      "t": 22.1,
+      "text": "And the clock runs out."
+    },
+    {
+      "id": "07",
+      "t": 24.6,
+      "text": "So the only real question is: who makes it, and who falls apart?"
+    },
+    {
+      "id": "08",
+      "t": 30.9,
+      "text": "This is Fiasco."
+    },
+    {
+      "id": "09",
+      "t": 32.9,
+      "text": "A betting game about things going wrong."
+    },
+    {
+      "id": "10",
+      "t": 36.6,
+      "text": "Pick a courier. Call it: finishes, or fails. Then put your chips down."
+    },
+    {
+      "id": "11",
+      "t": 44.4,
+      "text": "You're not betting alone. Mako, Dottie and Rook are punters with their own bankrolls. And every bet moves the odds."
+    },
+    {
+      "id": "12",
+      "t": 54.4,
+      "text": "Then watch the run. Twice, the betting window reopens. Double down, or cash out."
+    },
+    {
+      "id": "13",
+      "t": 62.3,
+      "text": "Every round is built from a fresh NEAR block. No two runs are the same."
+    },
+    {
+      "id": "14",
+      "t": 68.3,
+      "text": "And every chip, every bet, every payout settles on NEAR. You'll never notice."
+    },
+    {
+      "id": "15",
+      "t": 82,
+      "text": "Fiasco. Bet on the breakdown."
+    }
+  ],
+  "sfx": [
+    {
+      "t": 5.88,
+      "kind": "whoosh"
+    },
+    {
+      "t": 8.280000000000001,
+      "kind": "whoosh"
+    },
+    {
+      "t": 9.48,
+      "kind": "whoosh"
+    },
+    {
+      "t": 10.680000000000001,
+      "kind": "whoosh"
+    },
+    {
+      "t": 11.88,
+      "kind": "whoosh"
+    },
+    {
+      "t": 12.5,
+      "kind": "tick",
+      "gain": 0.7
+    },
+    {
+      "t": 13.2,
+      "kind": "tick",
+      "gain": 0.7
+    },
+    {
+      "t": 14.08,
+      "kind": "whoosh"
+    },
+    {
+      "t": 14.37,
+      "kind": "tick",
+      "gain": 0.7
+    },
+    {
+      "t": 15,
+      "kind": "impact"
+    },
+    {
+      "t": 15.88,
+      "kind": "whoosh"
+    },
+    {
+      "t": 16.15,
+      "kind": "tick",
+      "gain": 0.7
+    },
+    {
+      "t": 16.42,
+      "kind": "tick",
+      "gain": 0.7
+    },
+    {
+      "t": 16.69,
+      "kind": "tick",
+      "gain": 0.7
+    },
+    {
+      "t": 16.96,
+      "kind": "tick",
+      "gain": 0.7
+    },
+    {
+      "t": 17.23,
+      "kind": "tick",
+      "gain": 0.7
+    },
+    {
+      "t": 17.5,
+      "kind": "tick",
+      "gain": 0.7
+    },
+    {
+      "t": 17.650000000000002,
+      "kind": "pop"
+    },
+    {
+      "t": 17.77,
+      "kind": "tick",
+      "gain": 0.7
+    },
+    {
+      "t": 17.92,
+      "kind": "pop"
+    },
+    {
+      "t": 18,
+      "kind": "tick",
+      "gain": 0.7
+    },
+    {
+      "t": 18.63,
+      "kind": "impact"
+    },
+    {
+      "t": 18.68,
+      "kind": "whoosh"
+    },
+    {
+      "t": 18.95,
+      "kind": "tick",
+      "gain": 0.7
+    },
+    {
+      "t": 19.21,
+      "kind": "tick",
+      "gain": 0.7
+    },
+    {
+      "t": 19.47,
+      "kind": "tick",
+      "gain": 0.7
+    },
+    {
+      "t": 19.73,
+      "kind": "tick",
+      "gain": 0.7
+    },
+    {
+      "t": 19.84,
+      "kind": "impact"
+    },
+    {
+      "t": 19.89,
+      "kind": "pop"
+    },
+    {
+      "t": 19.99,
+      "kind": "tick",
+      "gain": 0.7
+    },
+    {
+      "t": 20.25,
+      "kind": "tick",
+      "gain": 0.7
+    },
+    {
+      "t": 20.51,
+      "kind": "tick",
+      "gain": 0.7
+    },
+    {
+      "t": 20.67,
+      "kind": "pop"
+    },
+    {
+      "t": 20.9,
+      "kind": "tick",
+      "gain": 0.7
+    },
+    {
+      "t": 20.930000000000003,
+      "kind": "pop"
+    },
+    {
+      "t": 21.299999999999997,
+      "kind": "fail"
+    },
+    {
+      "t": 21.88,
+      "kind": "whoosh"
+    },
+    {
+      "t": 22.2,
+      "kind": "tick",
+      "gain": 0.7
+    },
+    {
+      "t": 22.55,
+      "kind": "tick",
+      "gain": 0.7
+    },
+    {
+      "t": 22.9,
+      "kind": "tick",
+      "gain": 0.7
+    },
+    {
+      "t": 23.25,
+      "kind": "tick",
+      "gain": 0.7
+    },
+    {
+      "t": 23.32,
+      "kind": "pop"
+    },
+    {
+      "t": 23.36,
+      "kind": "pop",
+      "gain": 1.3
+    },
+    {
+      "t": 23.6,
+      "kind": "tick",
+      "gain": 0.7
+    },
+    {
+      "t": 23.67,
+      "kind": "pop"
+    },
+    {
+      "t": 23.88,
+      "kind": "whoosh"
+    },
+    {
+      "t": 24.4,
+      "kind": "tick",
+      "gain": 0.35
+    },
+    {
+      "t": 24.9,
+      "kind": "tick",
+      "gain": 0.35
+    },
+    {
+      "t": 25.4,
+      "kind": "tick",
+      "gain": 0.35
+    },
+    {
+      "t": 25.9,
+      "kind": "tick",
+      "gain": 0.35
+    },
+    {
+      "t": 26.4,
+      "kind": "tick",
+      "gain": 0.35
+    },
+    {
+      "t": 26.529999999999998,
+      "kind": "impact"
+    },
+    {
+      "t": 26.9,
+      "kind": "tick",
+      "gain": 0.35
+    },
+    {
+      "t": 27.32,
+      "kind": "pop"
+    },
+    {
+      "t": 27.4,
+      "kind": "tick",
+      "gain": 0.35
+    },
+    {
+      "t": 27.4,
+      "kind": "riser",
+      "len": 2.6
+    },
+    {
+      "t": 27.9,
+      "kind": "tick",
+      "gain": 0.35
+    },
+    {
+      "t": 28.4,
+      "kind": "tick",
+      "gain": 0.35
+    },
+    {
+      "t": 28.9,
+      "kind": "tick",
+      "gain": 0.35
+    },
+    {
+      "t": 29.4,
+      "kind": "tick",
+      "gain": 0.35
+    },
+    {
+      "t": 29.82,
+      "kind": "pop"
+    },
+    {
+      "t": 30,
+      "kind": "hit"
+    },
+    {
+      "t": 35.88,
+      "kind": "whoosh"
+    },
+    {
+      "t": 37.8,
+      "kind": "click"
+    },
+    {
+      "t": 39,
+      "kind": "click"
+    },
+    {
+      "t": 39.9,
+      "kind": "click"
+    },
+    {
+      "t": 41,
+      "kind": "cash"
+    },
+    {
+      "t": 41,
+      "kind": "click"
+    },
+    {
+      "t": 43.88,
+      "kind": "whoosh"
+    },
+    {
+      "t": 45.4,
+      "kind": "flip"
+    },
+    {
+      "t": 47,
+      "kind": "flip"
+    },
+    {
+      "t": 48.6,
+      "kind": "flip"
+    },
+    {
+      "t": 53.5,
+      "kind": "click"
+    },
+    {
+      "t": 53.88,
+      "kind": "whoosh"
+    },
+    {
+      "t": 54.3,
+      "kind": "tick",
+      "gain": 0.7
+    },
+    {
+      "t": 54.78,
+      "kind": "tick",
+      "gain": 0.7
+    },
+    {
+      "t": 55.26,
+      "kind": "tick",
+      "gain": 0.7
+    },
+    {
+      "t": 55.74,
+      "kind": "tick",
+      "gain": 0.7
+    },
+    {
+      "t": 55.89,
+      "kind": "impact"
+    },
+    {
+      "t": 56.22,
+      "kind": "tick",
+      "gain": 0.7
+    },
+    {
+      "t": 56.7,
+      "kind": "tick",
+      "gain": 0.7
+    },
+    {
+      "t": 57.18,
+      "kind": "tick",
+      "gain": 0.7
+    },
+    {
+      "t": 57.6,
+      "kind": "pop"
+    },
+    {
+      "t": 57.6,
+      "kind": "pop"
+    },
+    {
+      "t": 57.66,
+      "kind": "tick",
+      "gain": 0.7
+    },
+    {
+      "t": 58.08,
+      "kind": "pop"
+    },
+    {
+      "t": 58.14,
+      "kind": "tick",
+      "gain": 0.7
+    },
+    {
+      "t": 58.62,
+      "kind": "tick",
+      "gain": 0.7
+    },
+    {
+      "t": 59.3,
+      "kind": "flip"
+    },
+    {
+      "t": 59.7,
+      "kind": "flip"
+    },
+    {
+      "t": 60.2,
+      "kind": "click"
+    },
+    {
+      "t": 60.9,
+      "kind": "cash"
+    },
+    {
+      "t": 60.9,
+      "kind": "click"
+    },
+    {
+      "t": 61.6,
+      "kind": "click"
+    },
+    {
+      "t": 61.88,
+      "kind": "whoosh"
+    },
+    {
+      "t": 63.38,
+      "kind": "whoosh"
+    },
+    {
+      "t": 64.88,
+      "kind": "whoosh"
+    },
+    {
+      "t": 66.38,
+      "kind": "whoosh"
+    },
+    {
+      "t": 67.88,
+      "kind": "whoosh"
+    },
+    {
+      "t": 68.3,
+      "kind": "tick",
+      "gain": 0.35
+    },
+    {
+      "t": 68.8,
+      "kind": "tick",
+      "gain": 0.35
+    },
+    {
+      "t": 69.3,
+      "kind": "tick",
+      "gain": 0.35
+    },
+    {
+      "t": 69.42999999999999,
+      "kind": "impact"
+    },
+    {
+      "t": 69.8,
+      "kind": "tick",
+      "gain": 0.35
+    },
+    {
+      "t": 70.3,
+      "kind": "tick",
+      "gain": 0.35
+    },
+    {
+      "t": 70.72,
+      "kind": "pop"
+    },
+    {
+      "t": 70.8,
+      "kind": "tick",
+      "gain": 0.35
+    },
+    {
+      "t": 71.22,
+      "kind": "pop"
+    },
+    {
+      "t": 71.3,
+      "kind": "tick",
+      "gain": 0.35
+    },
+    {
+      "t": 71.8,
+      "kind": "tick",
+      "gain": 0.35
+    },
+    {
+      "t": 72,
+      "kind": "riser",
+      "len": 2
+    },
+    {
+      "t": 72.3,
+      "kind": "tick",
+      "gain": 0.35
+    },
+    {
+      "t": 72.42999999999999,
+      "kind": "impact"
+    },
+    {
+      "t": 72.7,
+      "kind": "fail"
+    },
+    {
+      "t": 72.8,
+      "kind": "tick",
+      "gain": 0.35
+    },
+    {
+      "t": 73.22,
+      "kind": "pop"
+    },
+    {
+      "t": 73.88,
+      "kind": "whoosh"
+    },
+    {
+      "t": 74.6,
+      "kind": "tick",
+      "gain": 0.35
+    },
+    {
+      "t": 75.02,
+      "kind": "pop"
+    },
+    {
+      "t": 75.05999999999999,
+      "kind": "pop",
+      "gain": 1.3
+    },
+    {
+      "t": 77,
+      "kind": "tick",
+      "gain": 0.35
+    },
+    {
+      "t": 77.3,
+      "kind": "tick",
+      "gain": 0.35
+    },
+    {
+      "t": 77.6,
+      "kind": "tick",
+      "gain": 0.35
+    },
+    {
+      "t": 77.78,
+      "kind": "whoosh"
+    },
+    {
+      "t": 77.9,
+      "kind": "tick",
+      "gain": 0.35
+    },
+    {
+      "t": 78.32000000000001,
+      "kind": "pop"
+    },
+    {
+      "t": 78.36,
+      "kind": "pop",
+      "gain": 1.3
+    },
+    {
+      "t": 78.4,
+      "kind": "count",
+      "len": 1.4
+    },
+    {
+      "t": 80.88,
+      "kind": "whoosh"
+    },
+    {
+      "t": 81,
+      "kind": "hit"
+    }
+  ]
+}
