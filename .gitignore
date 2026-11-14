@@ -5,8 +5,4 @@ node_modules/
 .env.*.local
 contracts/*/target/
 tsconfig.tsbuildinfo
-video/out/
-video/stills/
-video/vo/
-video/vo-scratch/
 .claude/

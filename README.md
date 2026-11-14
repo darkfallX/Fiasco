@@ -79,7 +79,6 @@ Either way the game answers instantly from the server engine and writes each act
 ## What is not built
 
 - **Anonymous players are still custodied.** Without a wallet, the game's relayer signs your bets under a cookie id. Connecting a wallet is optional.
-- **The wallet sign-in step itself is untested.** Testing reached the wallet chooser but did not sign in to Meteor, HERE or Intear. Everything after the key is on the account was tested end to end on testnet with a real account (`npm run test:wallet`): signed bets, settlement, cash out and buy in, plus tampered, forged and unsigned bets being refused. MyNearWallet is not offered because it no longer accepts app connections.
 - **Chips are test chips.** Table balances live in the contract's own ledger; CHIP exists only for chips you cash out. Neither has any value.
 - **Testnet only.**
 - **The couriers are small trained networks, not language models.** Setting `NEAR_AI_API_KEY` routes each move through NEAR AI Cloud with a TEE attestation request instead; that path was not exercised in testing.
@@ -108,20 +107,6 @@ npm run tune          # finish rates per courier over 400 seeded rounds per map
 npm run train         # retrain the courier brains (a few minutes per courier)
 npm run build         # typecheck and production bundle
 ```
-
-## Trailer
-
-The 90-second trailer is the real game played from a fixed script (`src/film/timeline.ts`, shown at `/film`; add `?preview=1` to watch it live). It is rendered frame by frame, so it is smooth on any machine. With the dev server running:
-
-```bash
-npm run film:picture   # 1080p picture, about ten minutes
-npm run film:voice     # scratch voice lines (needs Python and edge-tts)
-npm run film:voice:eleven   # or: ElevenLabs voice, needs ELEVENLABS_API_KEY in .env.local
-npm run film:audio     # original music and sound effects, synthesised
-npm run film:mix       # video/out/fiasco-trailer.mp4
-```
-
-To use your own voice recordings, replace the files in `video/vo/` and run `npm run film:mix` again.
 
 ## Layout
 
