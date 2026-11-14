@@ -20,6 +20,8 @@ import {
   viewLedger,
 } from "../near/testnet";
 import { AgentId, ArenaState, OnChainReceipt, OutcomeSide, PunterView } from "../types";
+import { sendMetaTransaction, viewAccessKey } from "../near/testnet";
+import { DelegatePayload, verifyLinkProof, verifyPayload } from "../near/delegate";
 
 export type SettledRoundArchive = {
   roundId: string;
@@ -53,9 +55,9 @@ const AGENT_NUM: Record<AgentId, string> = { vanguard: "1", gridwise: "2", pivot
 /** Finish rates the punters start from; real results are folded in as rounds settle. */
 const PRIOR_WEIGHT = 12;
 const PRIOR_RATE: Record<string, Record<AgentId, number>> = {
-  "sector-4-relay": { vanguard: 0.69, gridwise: 0.62, pivot: 0.89 },
-  "crosswind-chokepoint": { vanguard: 0.19, gridwise: 0.65, pivot: 0.98 },
-  "low-charge-sprint": { vanguard: 0.27, gridwise: 0.5, pivot: 0.47 },
+  "sector-4-relay": { vanguard: 0.83, gridwise: 0.69, pivot: 0.84 },
+  "crosswind-chokepoint": { vanguard: 0.55, gridwise: 0.77, pivot: 0.71 },
+  "low-charge-sprint": { vanguard: 0.60, gridwise: 0.60, pivot: 0.71 },
 };
 
 type NpcState = { bank: number; lastBet: string | null; out: boolean };
@@ -77,6 +79,16 @@ type Session = {
   queuedOps: number;
   confirmedOps: number;
   rejectedOps: number;
+  /** The player's own NEAR account, when they have connected one. */
+  wallet: { accountId: string; publicKey: string } | null;
+  walletChips: number | null;
+};
+
+type QueueItem = {
+  sid: string;
+  op?: LedgerOp;
+  meta?: DelegatePayload;
+  onFail?: () => void;
 };
 
 type Root = {
@@ -87,7 +99,7 @@ type Root = {
   npcLoaded: Promise<void> | null;
   /** True once any round has moved punter chips; after that the server copy leads. */
   npcTouched: boolean;
-  queue: { sid: string; op: LedgerOp }[];
+  queue: QueueItem[];
   flushing: boolean;
 };
 
@@ -137,13 +149,57 @@ function enqueue(session: Session, ops: LedgerOp[]): void {
   void flushQueue();
 }
 
+/** A player-signed action, relayed in order with everything else. */
+function enqueueMeta(session: Session, meta: DelegatePayload, onFail?: () => void): void {
+  if (!chainEnabled()) return;
+  root().queue.push({ sid: session.sid, meta, onFail });
+  session.queuedOps += 1;
+  void flushQueue();
+}
+
+function addReceipt(session: Session, receipt: OnChainReceipt): void {
+  const spec = session.arena.evidence.nearContractSpec;
+  session.arena = {
+    ...session.arena,
+    evidence: {
+      ...session.arena.evidence,
+      nearContractSpec: { ...spec, deployed: true, receipts: [receipt, ...spec.receipts].slice(0, 24) },
+    },
+  };
+}
+
+async function refreshWalletChips(session: Session): Promise<void> {
+  if (!session.wallet) return;
+  const raw = await viewLedger<string>("ft_balance_of", { account_id: session.wallet.accountId });
+  if (raw !== null) session.walletChips = round2(Number(raw) / 100);
+}
+
 async function flushQueue(): Promise<void> {
   const r = root();
   if (r.flushing) return;
   r.flushing = true;
   try {
     while (r.queue.length > 0) {
-      const batch = r.queue.splice(0, 16);
+      if (r.queue[0].meta) {
+        const item = r.queue.shift() as QueueItem;
+        const res = await sendMetaTransaction(item.meta as DelegatePayload);
+        const session = r.sessions.get(item.sid);
+        if (!session) continue;
+        session.queuedOps = Math.max(0, session.queuedOps - 1);
+        if (res.ok) session.confirmedOps += 1;
+        else {
+          session.rejectedOps += 1;
+          item.onFail?.();
+        }
+        if (res.receipt) addReceipt(session, res.receipt);
+        if (item.meta && (item.meta.methodName === "cash_out" || item.meta.methodName === "buy_in")) {
+          await refreshWalletChips(session);
+        }
+        broadcast(session);
+        continue;
+      }
+      const end = r.queue.findIndex((q, i) => i >= 16 || Boolean(q.meta));
+      const batch = r.queue.splice(0, end === -1 ? 16 : end) as (QueueItem & { op: LedgerOp })[];
       let results: string[] = [];
       let receipt: OnChainReceipt | null = null;
       try {
@@ -232,6 +288,7 @@ function publishIfNeeded(session: Session): void {
     ledgerOp({
       kind: "publish",
       round_id: a.roundId,
+      player: session.playerId,
       a: a.evidence.missionHash,
       b: a.seed.blockHash,
       n: a.seed.blockHeight ?? 0,
@@ -270,6 +327,7 @@ function stamp(session: Session): ArenaState {
     chain: {
       enabled: chainEnabled(),
       playerId: session.playerId,
+      wallet: session.wallet ? { accountId: session.wallet.accountId, chips: session.walletChips } : null,
       contractId: relayer?.contractId ?? session.arena.evidence.nearContractSpec.contractId,
       pendingOps: session.queuedOps + session.heldOps.length,
       confirmedOps: session.confirmedOps,
@@ -603,6 +661,8 @@ export async function getSession(sid: string): Promise<Session> {
       queuedOps: 0,
       confirmedOps: 0,
       rejectedOps: 0,
+      wallet: null,
+      walletChips: null,
     };
 
     // Returning players pick their chips back up from the contract.
@@ -644,33 +704,178 @@ export async function resetArenaRound(sid: string, missionId?: string): Promise<
   return session;
 }
 
+/** Checks a player-signed action before relaying it. Returns an error message or null. */
+function checkMeta(session: Session, meta: DelegatePayload | undefined, method: DelegatePayload["methodName"]): string | null {
+  const relayer = getActiveRelayer();
+  if (!session.wallet) return "No wallet connected";
+  if (!meta) return "This bet needs your wallet signature";
+  if (meta.senderId !== session.wallet.accountId || meta.publicKey !== session.wallet.publicKey) {
+    return "Signed by a different account";
+  }
+  if (!relayer || meta.receiverId !== relayer.contractId) return "Signed for a different contract";
+  if (meta.methodName !== method) return "Signed for a different action";
+  if (!verifyPayload(meta)) return "Signature does not match";
+  return null;
+}
+
+const near = (a: unknown, b: number) => typeof a === "number" && Math.abs(a - b) <= 2;
+
 export async function tradeForSession(
   sid: string,
-  params: { agentId: AgentId; action: "BUY" | "SELL"; side: OutcomeSide; amount: number }
+  params: { agentId: AgentId; action: "BUY" | "SELL"; side: OutcomeSide; amount: number },
+  meta?: DelegatePayload
 ): Promise<{ session: Session; error?: string }> {
   const session = await getSession(sid);
-  if (session.arena.tradingStatus === "OPEN") activateRound(session);
   const res = executeMarketTrade(session.arena, {
     ...params,
     trader: "You",
     traderType: "user",
   });
   if (res.error) return { session, error: res.error };
-
-  session.arena = res.state;
-  session.arena.evidence = computeVerificationHashes(session.arena);
   const trade = res.state.trades[0];
-  enqueue(session, [
-    ledgerOp({
-      kind: params.action === "BUY" ? "bet" : "sell",
-      round_id: session.arena.roundId,
-      player: session.playerId,
-      agent: params.agentId,
-      yes: params.side === "YES",
-      shares_e4: Math.round(trade.shares * 10000),
-      cents: Math.round(Math.abs(trade.creditsDelta) * 100),
-    }),
-  ]);
+  const sharesE4 = Math.round(trade.shares * 10000);
+  const cents = Math.round(Math.abs(trade.creditsDelta) * 100);
+
+  if (session.wallet) {
+    const bad = checkMeta(session, meta, params.action === "BUY" ? "place_bet" : "place_sell");
+    if (bad) return { session, error: bad };
+    const a = (meta as DelegatePayload).args;
+    if (
+      a.round_id !== session.arena.roundId ||
+      a.agent !== params.agentId ||
+      a.yes !== (params.side === "YES") ||
+      !near(a.shares_e4, sharesE4) ||
+      !near(a.cents, cents)
+    ) {
+      return { session, error: "The price moved. Try again." };
+    }
+  }
+
+  if (session.arena.tradingStatus === "OPEN") activateRound(session);
+  session.arena = { ...res.state, punters: session.arena.punters, chain: session.arena.chain };
+  session.arena.evidence = computeVerificationHashes(session.arena);
+  if (session.wallet && meta) {
+    enqueueMeta(session, meta);
+  } else {
+    enqueue(session, [
+      ledgerOp({
+        kind: params.action === "BUY" ? "bet" : "sell",
+        round_id: session.arena.roundId,
+        player: session.playerId,
+        agent: params.agentId,
+        yes: params.side === "YES",
+        shares_e4: sharesE4,
+        cents,
+      }),
+    ]);
+  }
+  broadcast(session);
+  return { session };
+}
+
+// ---------------------------------------------------------------- wallets
+
+async function bankrollFor(session: Session, playerId: string): Promise<number> {
+  const onChain = await viewLedger<{ balance_cents: number } | null>("get_player", { player: playerId });
+  let bankroll = onChain ? round2(onChain.balance_cents / 100) : STARTING_CREDITS;
+  if (bankroll < REBUY_BELOW) {
+    bankroll = STARTING_CREDITS;
+    enqueue(session, [ledgerOp({ kind: "rebuy", player: playerId })]);
+  }
+  return bankroll;
+}
+
+/**
+ * Connects a NEAR account to this game. The browser proves it holds a key that the
+ * account has authorised for this contract; from then on that account owns the rounds
+ * and signs its own bets. The current round is called off and its stakes returned.
+ */
+export async function linkWallet(
+  sid: string,
+  proof: { accountId: string; publicKey: string; issuedAt: number; signature: string }
+): Promise<{ session: Session; error?: string }> {
+  const session = await getSession(sid);
+  const relayer = getActiveRelayer();
+  if (!chainEnabled() || !relayer) return { session, error: "This server is not connected to NEAR" };
+  if (!/^[a-z0-9._-]{2,64}$/.test(proof.accountId)) return { session, error: "That is not a NEAR account id" };
+  if (Math.abs(Date.now() - proof.issuedAt) > 10 * 60 * 1000) return { session, error: "Login expired, connect again" };
+  if (!verifyLinkProof(proof.publicKey, proof.accountId, proof.issuedAt, proof.signature)) {
+    return { session, error: "Key check failed" };
+  }
+  const key = await viewAccessKey(proof.accountId, proof.publicKey);
+  if (!key) return { session, error: "That key is not on the account yet. Try again in a few seconds." };
+  if (!key.fullAccess && key.receiverId !== relayer.contractId) {
+    return { session, error: "That key is for a different contract" };
+  }
+  if (session.wallet?.accountId === proof.accountId && session.wallet.publicKey === proof.publicKey) {
+    return { session };
+  }
+
+  const missionId = session.arena.mission.id;
+  abandonRound(session);
+  session.wallet = { accountId: proof.accountId, publicKey: proof.publicKey };
+  session.playerId = proof.accountId;
+  session.archive = [];
+  const bankroll = await bankrollFor(session, proof.accountId);
+  await refreshWalletChips(session);
+  await startRound(session, missionId, bankroll);
+  broadcast(session);
+  return { session };
+}
+
+export async function unlinkWallet(sid: string): Promise<Session> {
+  const session = await getSession(sid);
+  if (!session.wallet) return session;
+  const missionId = session.arena.mission.id;
+  abandonRound(session);
+  session.wallet = null;
+  session.walletChips = null;
+  session.playerId = `p:${sid.slice(0, 24)}`;
+  session.archive = [];
+  const bankroll = await bankrollFor(session, session.playerId);
+  await startRound(session, missionId, bankroll);
+  broadcast(session);
+  return session;
+}
+
+export async function walletKey(sid: string) {
+  const session = await getSession(sid);
+  if (!session.wallet) return null;
+  return viewAccessKey(session.wallet.accountId, session.wallet.publicKey);
+}
+
+/** Moves chips between the table and the player's wallet (as CHIP tokens). */
+export async function moveChips(
+  sid: string,
+  direction: "out" | "in",
+  meta: DelegatePayload
+): Promise<{ session: Session; error?: string }> {
+  const session = await getSession(sid);
+  const bad = checkMeta(session, meta, direction === "out" ? "cash_out" : "buy_in");
+  if (bad) return { session, error: bad };
+  const cents = Number(meta.args.cents);
+  if (!Number.isInteger(cents) || cents <= 0) return { session, error: "Nothing to move" };
+  const amount = cents / 100;
+  if (direction === "out" && amount > session.arena.userCredits + 1e-6) {
+    return { session, error: "Not that many chips on the table" };
+  }
+  if (direction === "in" && session.walletChips !== null && amount > session.walletChips + 1e-6) {
+    return { session, error: "Not that many chips in your wallet" };
+  }
+  const delta = direction === "out" ? -amount : amount;
+  const apply = (d: number) => {
+    session.arena = {
+      ...session.arena,
+      userCredits: round2(session.arena.userCredits + d),
+      initialUserCredits: round2(session.arena.initialUserCredits + d),
+    };
+  };
+  apply(delta);
+  if (session.walletChips !== null) session.walletChips = round2(session.walletChips - delta);
+  activateRound(session);
+  enqueueMeta(session, meta, () => {
+    apply(-delta);
+  });
   broadcast(session);
   return { session };
 }

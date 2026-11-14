@@ -94,7 +94,8 @@ export function buildRoundMission(base: MissionConfig, seedHex: string): Mission
       }
     }
 
-    const maxTurns = base.maxTurns + int(-5, 1);
+    // The clock always leaves room after the second betting window.
+    const maxTurns = Math.max(base.checkpoints[1] + 2, base.maxTurns + int(-5, 1));
     const mission: MissionConfig = {
       ...base,
       maxTurns,

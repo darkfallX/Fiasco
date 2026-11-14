@@ -13,6 +13,9 @@ import { LowerTabs } from "./LowerTabs";
 import { AgentsView, DiscoverView, PortfolioView } from "./SecondaryViews";
 import { AGENT_INK, AGENT_NUM, BetSlip, PuntersBoard, RacerBoard, money } from "./Tote";
 import { ChainLedger } from "./ChainLedger";
+import { WalletPanel } from "./WalletPanel";
+import { useWallet } from "./useWallet";
+import { quoteBuyByCredits, quoteSellShares } from "@/lib/market/lmsr";
 import {
   GlyphAudio,
   GlyphClose,
@@ -65,6 +68,7 @@ export function FiascoApp({ initialArena, initialArchive }: Props) {
   }, [busy]);
 
   const [walletModalOpen, setWalletModalOpen] = useState(false);
+  const wallet = useWallet(arena, setArena);
 
   const prevEventCountRef = useRef(initialArena.events.length);
   const prevTurnRef = useRef(initialArena.turn);
@@ -228,10 +232,29 @@ export function FiascoApp({ initialArena, initialArchive }: Props) {
     setBusy(true);
     setTradeError(null);
     try {
+      // With a connected NEAR account the player signs the exact bet the market quotes.
+      let meta = undefined;
+      if (wallet.linked) {
+        const market = arena.markets[params.agentId];
+        const buy = params.action === "BUY";
+        const sharesE4 = buy
+          ? Math.round(quoteBuyByCredits(market, params.side, params.amount).shares * 10000)
+          : Math.round(params.amount * 10000);
+        const cents = buy
+          ? Math.round(params.amount * 100)
+          : Math.round(quoteSellShares(market, params.side, params.amount).proceedsCredits * 100);
+        meta = await wallet.sign(buy ? "place_bet" : "place_sell", {
+          round_id: arena.roundId,
+          agent: params.agentId,
+          yes: params.side === "YES",
+          shares_e4: sharesE4,
+          cents,
+        });
+      }
       const res = await fetch("/api/arena/trade", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(params),
+        body: JSON.stringify({ ...params, meta }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -240,8 +263,8 @@ export function FiascoApp({ initialArena, initialArchive }: Props) {
         setArena(data.arena);
         soundEngine.playTradeFill(params.action === "BUY" ? "YES" : "NO");
       }
-    } catch {
-      setTradeError("Bet failed to send");
+    } catch (err) {
+      setTradeError(err instanceof Error && wallet.linked ? err.message : "Bet failed to send");
     } finally {
       setBusy(false);
     }
@@ -347,6 +370,17 @@ export function FiascoApp({ initialArena, initialArchive }: Props) {
           </div>
 
           <div className="flex items-center gap-2">
+            {arena.chain.enabled && (
+              <button
+                type="button"
+                onClick={() => setWalletModalOpen(true)}
+                className={`max-w-[150px] sm:max-w-[220px] truncate px-2 py-1 font-display text-base font-bold leading-none ${
+                  wallet.linked ? "border border-[#E2A400] text-[#E2A400]" : "bg-[#F7F2E6] text-[#1A1915]"
+                }`}
+              >
+                {wallet.linked ? wallet.accountId : wallet.accountId ? "RECONNECT" : "CONNECT NEAR"}
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setWalletModalOpen(true)}
@@ -739,6 +773,7 @@ export function FiascoApp({ initialArena, initialArchive }: Props) {
               </button>
             </div>
             <div className="p-4 overflow-y-auto">
+              <WalletPanel arena={arena} wallet={wallet} />
               <ChainLedger arena={arena} />
             </div>
           </div>

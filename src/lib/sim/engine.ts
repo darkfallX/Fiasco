@@ -1,3 +1,4 @@
+import { brainMove, hasBrain } from "./brain";
 import {
   createAgentMarket,
   applyBuyTrade,
@@ -279,6 +280,7 @@ export function createInitialArenaState(
     chain: {
       enabled: false,
       playerId: "",
+      wallet: null,
       contractId,
       pendingOps: 0,
       confirmedOps: 0,
@@ -367,6 +369,12 @@ export function decideAgentMove(
       nextCoord: agent.coord,
       rationale: "All deliveries complete.",
     };
+  }
+
+  // The trained network drives the courier (src/lib/sim/brain.ts). The hand-written
+  // rules below only run if no trained weights are present.
+  if (hasBrain(agent.id)) {
+    return brainMove(agent, mission, activeHazards, nextTurn);
   }
 
   const onCharger = mission.chargers.find((c) => sameCoord(c.coord, agent.coord));

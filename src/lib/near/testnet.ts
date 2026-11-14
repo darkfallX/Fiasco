@@ -2,6 +2,7 @@ import { KeyPair, keyStores, connect, providers } from "near-api-js";
 import type { Account } from "near-api-js";
 import type { KeyPairString } from "@near-js/crypto";
 import { OnChainReceipt, RoundSeed } from "../types";
+import { DelegatePayload, signedDelegateAction } from "./delegate";
 
 export const DEFAULT_RPC_URL = "https://test.rpc.fastnear.com";
 
@@ -134,6 +135,75 @@ export async function sendLedgerBatch(
       explorerUrl: `https://testnet.nearblocks.io/txns/${txHash}`,
     },
   };
+}
+
+/**
+ * Relays one player-signed action (NEP-366). The outer transaction is signed and paid
+ * for by the relayer; the contract sees the player as the caller.
+ */
+export async function sendMetaTransaction(
+  p: DelegatePayload
+): Promise<{ ok: boolean; receipt: OnChainReceipt | null; error?: string }> {
+  const relayer = getActiveRelayer();
+  if (!relayer || !relayer.contractDeployed) return { ok: false, receipt: null, error: "Chain ledger not configured" };
+  const receiptFor = (txHash: string, note?: string): OnChainReceipt => ({
+    id: `tx-${txHash.slice(0, 10)}`,
+    method: `${p.methodName.replace("place_", "")} signed by ${p.senderId}`,
+    note,
+    txHash,
+    signerId: p.senderId,
+    contractId: relayer.contractId,
+    timestamp: new Date().toISOString(),
+    explorerUrl: `https://testnet.nearblocks.io/txns/${txHash}`,
+  });
+  try {
+    const account = await getRelayerAccount();
+    const outcome = await account.signAndSendTransaction({
+      receiverId: p.senderId,
+      actions: [signedDelegateAction(p)],
+    });
+    return { ok: true, receipt: receiptFor(outcome.transaction_outcome.id) };
+  } catch (err) {
+    const e = err as { message?: string; transaction_outcome?: { id?: string } };
+    const message = (e.message || "transaction failed").slice(0, 120);
+    const hash = e.transaction_outcome?.id;
+    return { ok: false, receipt: hash ? receiptFor(hash, message) : null, error: message };
+  }
+}
+
+/** Nonce and current block for a player's wallet key, used to sign the next action. */
+export async function viewAccessKey(
+  accountId: string,
+  publicKey: string
+): Promise<{ nonce: string; blockHeight: number; receiverId: string | null; fullAccess: boolean } | null> {
+  try {
+    const res = await fetch(rpcUrl(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: "key",
+        method: "query",
+        params: { request_type: "view_access_key", finality: "final", account_id: accountId, public_key: publicKey },
+      }),
+      signal: AbortSignal.timeout(5000),
+    });
+    const json = (await res.json()) as {
+      result?: {
+        nonce?: number | string;
+        block_height?: number;
+        permission?: "FullAccess" | { FunctionCall?: { receiver_id?: string } };
+      };
+    };
+    const r = json.result;
+    if (!r || r.nonce === undefined || r.block_height === undefined) return null;
+    const fullAccess = r.permission === "FullAccess";
+    const receiverId =
+      typeof r.permission === "object" && r.permission?.FunctionCall ? r.permission.FunctionCall.receiver_id ?? null : null;
+    return { nonce: String(r.nonce), blockHeight: r.block_height, receiverId, fullAccess };
+  } catch {
+    return null;
+  }
 }
 
 export async function viewLedger<T>(methodName: string, args: Record<string, unknown>): Promise<T | null> {

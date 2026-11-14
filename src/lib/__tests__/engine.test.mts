@@ -17,6 +17,11 @@ import {
 } from "../sim/engine";
 import { MISSIONS } from "../sim/missions";
 import { buildRoundMission } from "../sim/variation";
+import { BLIND, hasBrain, N_FEATURES } from "../sim/brain";
+import { play } from "../../../scripts/courier-sim";
+import brains from "../sim/brains.json";
+import { KeyPair } from "@near-js/crypto";
+import { signLinkProof, signPlayerAction, verifyLinkProof, verifyPayload } from "../near/delegate";
 
 function testLmsrConservation() {
   const m = createAgentMarket("vanguard", "Test?");
@@ -165,7 +170,97 @@ function testAllMissionsSimulateCleanly() {
   }
 }
 
+function testBrainsLoaded() {
+  for (const id of AGENT_IDS) {
+    assert.ok(hasBrain(id), `${id} has trained weights`);
+    assert.ok(BLIND[id].every((i) => i > 0 && i < N_FEATURES), `${id} blind list is valid`);
+  }
+  assert.ok((brains as { meta?: unknown }).meta, "brains.json records how it was trained");
+  console.log("[PASS] All three couriers are driven by trained networks");
+}
+
+/** The training simulator must resolve every turn exactly like the game engine. */
+function testTrainingSimMatchesEngine() {
+  let compared = 0;
+  for (const base of MISSIONS) {
+    for (let i = 0; i < 25; i++) {
+      const m = buildRoundMission(base, `agree-${i}`);
+      let s = createInitialArenaState(base.id, "local-policy", "t", "c", "r", m);
+      let guard = 0;
+      while (s.phase !== "SETTLED" && guard++ < 80) s = stepSimulationTurn(s);
+      for (const id of AGENT_IDS) {
+        const lean = play(id, m, (brains as unknown as Record<string, number[]>)[id]);
+        const real = s.agents[id];
+        assert.equal(lean.status, real.status, `${base.id} #${i} ${id} status`);
+        assert.equal(lean.delivered, real.deliveredIds.length, `${base.id} #${i} ${id} drops`);
+        if (real.status === "completed") {
+          assert.equal(lean.finished, real.finishedTurn, `${base.id} #${i} ${id} finish turn`);
+          assert.equal(lean.battery, real.battery, `${base.id} #${i} ${id} battery`);
+        }
+        compared++;
+      }
+    }
+  }
+  console.log(`[PASS] Training simulator matches the engine on ${compared} courier runs`);
+}
+
+/** The three brains should not drive alike. */
+function testPersonalitiesDiffer() {
+  const totals: Record<string, { charges: number; battery: number; wins: number }> = {};
+  for (const id of AGENT_IDS) totals[id] = { charges: 0, battery: 0, wins: 0 };
+  for (const base of MISSIONS) {
+    for (let i = 0; i < 40; i++) {
+      let s = createInitialArenaState(base.id, "local-policy", "t", "c", "r", buildRoundMission(base, `style-${i}`));
+      let guard = 0;
+      while (s.phase !== "SETTLED" && guard++ < 80) s = stepSimulationTurn(s);
+      for (const id of AGENT_IDS) {
+        totals[id].charges += s.agents[id].chargesUsed;
+        if (s.agents[id].status === "completed") {
+          totals[id].wins++;
+          totals[id].battery += s.agents[id].battery;
+        }
+      }
+    }
+  }
+  const avgBattery = (id: string) => totals[id].battery / Math.max(1, totals[id].wins);
+  assert.ok(totals.gridwise.charges > totals.pivot.charges, "Gridwise charges more than Pivot");
+  assert.ok(totals.gridwise.charges > totals.vanguard.charges, "Gridwise charges more than Vanguard");
+  assert.ok(avgBattery("gridwise") > avgBattery("pivot") + 2, "Gridwise finishes with more battery than Pivot");
+  console.log(
+    "[PASS] Personalities differ: charges " +
+      AGENT_IDS.map((id) => `${id} ${totals[id].charges}`).join(", ") +
+      " | battery at finish " +
+      AGENT_IDS.map((id) => `${id} ${avgBattery(id).toFixed(1)}`).join(", ")
+  );
+}
+
+/** Player-signed actions: a valid signature verifies, any change to the action breaks it. */
+async function testSignedActions() {
+  const kp = KeyPair.fromRandom("ed25519");
+  const signed = await signPlayerAction({
+    secretKey: kp.toString(),
+    senderId: "alice.testnet",
+    receiverId: "fiasco.testnet",
+    methodName: "place_bet",
+    args: { round_id: "R1", agent: "pivot", yes: true, shares_e4: 15000, cents: 10000 },
+    nonce: BigInt(42),
+    blockHeight: 1000,
+  });
+  assert.ok(verifyPayload(signed), "signed bet verifies");
+  assert.ok(!verifyPayload({ ...signed, args: { ...signed.args, cents: 1 } }), "changed stake fails");
+  assert.ok(!verifyPayload({ ...signed, senderId: "mallory.testnet" }), "changed sender fails");
+  assert.ok(!verifyPayload({ ...signed, nonce: "43" }), "changed nonce fails");
+  const proof = signLinkProof(kp.toString(), "alice.testnet", 123);
+  assert.ok(verifyLinkProof(kp.getPublicKey().toString(), "alice.testnet", 123, proof), "login proof verifies");
+  assert.ok(!verifyLinkProof(kp.getPublicKey().toString(), "bob.testnet", 123, proof), "login proof is bound to the account");
+  console.log("[PASS] Player-signed bets verify, and any change breaks the signature");
+}
+
 testLmsrConservation();
+testBrainsLoaded();
+testTrainingSimMatchesEngine();
+testPersonalitiesDiffer();
+await testSignedActions();
 testLedgerEncodingStaysOnCurve();
 testRoundVariation();
 testOutcomesVary();

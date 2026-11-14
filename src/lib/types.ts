@@ -212,6 +212,8 @@ export type PunterView = {
 export type ChainStatus = {
   enabled: boolean;
   playerId: string;
+  /** Set when the player has connected a NEAR account and signs their own bets. */
+  wallet: { accountId: string; chips: number | null } | null;
   contractId: string;
   pendingOps: number;
   confirmedOps: number;

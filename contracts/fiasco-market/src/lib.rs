@@ -7,9 +7,30 @@
 //!
 //! Units: shares are stored in 1e-4 share units (e4), chips in cents.
 //! One winning share pays 100 chips, so one e4 unit pays exactly one cent.
+//!
+//! Two kinds of player:
+//! - Anonymous players (ids like "p:abc...") are custodied: the game's verifier account
+//!   writes their bets through `apply`.
+//! - Players with a NEAR account sign their own bets (`place_bet`, `place_sell`), usually
+//!   as NEP-366 meta transactions that the game relays, so they never pay gas or see a
+//!   popup. Their table chips can be cashed out to their wallet as CHIP, a NEP-141 token
+//!   issued by this contract, and bought back in.
 
+use near_contract_standards::fungible_token::events::{FtBurn, FtMint};
+use near_contract_standards::fungible_token::metadata::{
+    FungibleTokenMetadata, FungibleTokenMetadataProvider, FT_METADATA_SPEC,
+};
+use near_contract_standards::fungible_token::{
+    FungibleToken, FungibleTokenCore, FungibleTokenResolver,
+};
+use near_contract_standards::storage_management::{
+    StorageBalance, StorageBalanceBounds, StorageManagement,
+};
+use near_sdk::json_types::U128;
 use near_sdk::store::LookupMap;
-use near_sdk::{env, near, require, AccountId, PanicOnDefault};
+use near_sdk::{env, near, require, AccountId, NearToken, PanicOnDefault, PromiseOrValue};
+
+const CHIP_ICON: &str = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%231A1915'/%3E%3Crect x='6' y='6' width='20' height='20' fill='%23E2A400'/%3E%3Cpath d='M12 11h9v3h-6v2h5v3h-5v5h-3z' fill='%231A1915'/%3E%3C/svg%3E";
 
 const AGENTS: [&str; 3] = ["vanguard", "gridwise", "pivot"];
 const LMSR_B: f64 = 5.0;
@@ -100,6 +121,22 @@ pub struct FiascoMarket {
     pub positions: LookupMap<String, Position>,
     pub players: LookupMap<String, Player>,
     pub stats: Stats,
+    /// CHIP, the NEP-141 token for chips that have left the table for a wallet.
+    pub token: FungibleToken,
+    /// Who may place self-signed bets in each round.
+    pub round_owner: LookupMap<String, String>,
+}
+
+/// Layout of the v0.2 contract, read once by `migrate`.
+#[near(serializers = [borsh])]
+pub struct FiascoMarketV2 {
+    pub owner: AccountId,
+    pub verifier: AccountId,
+    pub rounds: LookupMap<String, Round>,
+    pub markets: LookupMap<String, Market>,
+    pub positions: LookupMap<String, Position>,
+    pub players: LookupMap<String, Player>,
+    pub stats: Stats,
 }
 
 fn lmsr_cost_units(q_yes_e4: i64, q_no_e4: i64) -> f64 {
@@ -132,7 +169,113 @@ impl FiascoMarket {
             positions: LookupMap::new(b"p"),
             players: LookupMap::new(b"u"),
             stats: Stats::default(),
+            token: FungibleToken::new(b"t".to_vec()),
+            round_owner: LookupMap::new(b"o"),
         }
+    }
+
+    /// Upgrades a v0.2 contract in place: every balance, round and stat is kept.
+    #[private]
+    #[init(ignore_state)]
+    pub fn migrate() -> Self {
+        let old: FiascoMarketV2 = env::state_read().expect("No v0.2 state to migrate");
+        Self {
+            owner: old.owner,
+            verifier: old.verifier,
+            rounds: old.rounds,
+            markets: old.markets,
+            positions: old.positions,
+            players: old.players,
+            stats: old.stats,
+            token: FungibleToken::new(b"t".to_vec()),
+            round_owner: LookupMap::new(b"o"),
+        }
+    }
+
+    // ------------------------------------------------------------ self-signed play
+
+    fn require_round_owner(&self, round_id: &str, player: &str) {
+        match self.round_owner.get(round_id) {
+            Some(owner) if owner == player => {}
+            _ => env::panic_str("This round belongs to another player"),
+        }
+    }
+
+    fn signed_op(kind: &str, round_id: String, agent: String, yes: bool, shares_e4: u64, cents: u64) -> Op {
+        Op {
+            kind: kind.to_string(),
+            round_id,
+            player: env::predecessor_account_id().to_string(),
+            agent,
+            yes,
+            shares_e4,
+            cents,
+            a: String::new(),
+            b: String::new(),
+            n: 0,
+            winners: vec![],
+        }
+    }
+
+    /// A bet signed by the player's own NEAR account. Same price check as `apply`.
+    pub fn place_bet(&mut self, round_id: String, agent: String, yes: bool, shares_e4: u64, cents: u64) {
+        let op = Self::signed_op("bet", round_id, agent, yes, shares_e4, cents);
+        self.require_round_owner(&op.round_id, &op.player);
+        if let Err(e) = self.op_bet(&op) {
+            env::panic_str(&e);
+        }
+    }
+
+    /// A cash-out of shares back to the market, signed by the player's own account.
+    pub fn place_sell(&mut self, round_id: String, agent: String, yes: bool, shares_e4: u64, cents: u64) {
+        let op = Self::signed_op("sell", round_id, agent, yes, shares_e4, cents);
+        self.require_round_owner(&op.round_id, &op.player);
+        if let Err(e) = self.op_sell(&op) {
+            env::panic_str(&e);
+        }
+    }
+
+    /// Moves chips from the caller's table balance to their wallet as CHIP (NEP-141).
+    pub fn cash_out(&mut self, cents: u64) -> U128 {
+        require!(cents > 0, "Nothing to cash out");
+        let account = env::predecessor_account_id();
+        let key = account.to_string();
+        let player = self.players.get_mut(&key).expect("No table balance for this account");
+        require!(player.balance_cents >= cents, "Not enough chips on the table");
+        player.balance_cents -= cents;
+        if !self.token.accounts.contains_key(&account) {
+            self.token.internal_register_account(&account);
+        }
+        self.token.internal_deposit(&account, cents as u128);
+        FtMint {
+            owner_id: &account,
+            amount: U128(cents as u128),
+            memo: Some("cash out from the table"),
+        }
+        .emit();
+        self.token.ft_balance_of(account)
+    }
+
+    /// Moves CHIP from the caller's wallet back onto their table balance.
+    pub fn buy_in(&mut self, cents: u64) -> u64 {
+        require!(cents > 0, "Nothing to buy in");
+        let account = env::predecessor_account_id();
+        self.token.internal_withdraw(&account, cents as u128);
+        FtBurn {
+            owner_id: &account,
+            amount: U128(cents as u128),
+            memo: Some("buy in to the table"),
+        }
+        .emit();
+        let key = account.to_string();
+        self.ensure_player(&key);
+        let player = self.players.get_mut(&key).expect("player missing");
+        player.balance_cents += cents;
+        player.balance_cents
+    }
+
+    pub fn get_round_owner(&self, round_id: String) -> Option<String> {
+        self.round_owner.get(&round_id).cloned()
     }
 
     /// Applies a batch of ledger operations in order. A rejected operation is reported
@@ -198,6 +341,9 @@ impl FiascoMarket {
                 updated_at_ns: env::block_timestamp(),
             },
         );
+        if !op.player.is_empty() {
+            self.round_owner.insert(op.round_id.clone(), op.player.clone());
+        }
         self.stats.rounds += 1;
         Ok(())
     }
@@ -441,5 +587,94 @@ impl FiascoMarket {
 
     pub fn get_verifier(&self) -> AccountId {
         self.verifier.clone()
+    }
+}
+
+// ------------------------------------------------------------------ NEP-141 CHIP
+
+#[near]
+impl FungibleTokenCore for FiascoMarket {
+    #[payable]
+    fn ft_transfer(&mut self, receiver_id: AccountId, amount: U128, memo: Option<String>) {
+        self.token.ft_transfer(receiver_id, amount, memo)
+    }
+
+    #[payable]
+    fn ft_transfer_call(
+        &mut self,
+        receiver_id: AccountId,
+        amount: U128,
+        memo: Option<String>,
+        msg: String,
+    ) -> PromiseOrValue<U128> {
+        self.token.ft_transfer_call(receiver_id, amount, memo, msg)
+    }
+
+    fn ft_total_supply(&self) -> U128 {
+        self.token.ft_total_supply()
+    }
+
+    fn ft_balance_of(&self, account_id: AccountId) -> U128 {
+        self.token.ft_balance_of(account_id)
+    }
+}
+
+#[near]
+impl FungibleTokenResolver for FiascoMarket {
+    #[private]
+    fn ft_resolve_transfer(
+        &mut self,
+        sender_id: AccountId,
+        receiver_id: AccountId,
+        amount: U128,
+    ) -> U128 {
+        let (used_amount, _burned_amount) =
+            self.token.internal_ft_resolve_transfer(&sender_id, receiver_id, amount);
+        used_amount.into()
+    }
+}
+
+#[near]
+impl StorageManagement for FiascoMarket {
+    #[payable]
+    fn storage_deposit(
+        &mut self,
+        account_id: Option<AccountId>,
+        registration_only: Option<bool>,
+    ) -> StorageBalance {
+        self.token.storage_deposit(account_id, registration_only)
+    }
+
+    #[payable]
+    fn storage_withdraw(&mut self, amount: Option<NearToken>) -> StorageBalance {
+        self.token.storage_withdraw(amount)
+    }
+
+    #[payable]
+    fn storage_unregister(&mut self, force: Option<bool>) -> bool {
+        self.token.internal_storage_unregister(force).is_some()
+    }
+
+    fn storage_balance_bounds(&self) -> StorageBalanceBounds {
+        self.token.storage_balance_bounds()
+    }
+
+    fn storage_balance_of(&self, account_id: AccountId) -> Option<StorageBalance> {
+        self.token.storage_balance_of(account_id)
+    }
+}
+
+#[near]
+impl FungibleTokenMetadataProvider for FiascoMarket {
+    fn ft_metadata(&self) -> FungibleTokenMetadata {
+        FungibleTokenMetadata {
+            spec: FT_METADATA_SPEC.to_string(),
+            name: "Fiasco Chip".to_string(),
+            symbol: "CHIP".to_string(),
+            icon: Some(CHIP_ICON.to_string()),
+            reference: None,
+            reference_hash: None,
+            decimals: 2,
+        }
     }
 }

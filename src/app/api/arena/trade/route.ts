@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { sessionPayload, tradeForSession } from "@/lib/server/store";
 import { sidFromRequest } from "@/lib/server/sid";
 import { AgentId, OutcomeSide } from "@/lib/types";
+import type { DelegatePayload } from "@/lib/near/delegate";
 
 export async function POST(req: NextRequest) {
   try {
@@ -10,6 +11,8 @@ export async function POST(req: NextRequest) {
       action?: "BUY" | "SELL";
       side?: OutcomeSide;
       amount?: number;
+      /** Present when the player signs their own bets with a connected NEAR account. */
+      meta?: DelegatePayload;
     };
     if (
       !body.agentId ||
@@ -30,7 +33,7 @@ export async function POST(req: NextRequest) {
       action: body.action,
       side: body.side,
       amount: body.amount,
-    });
+    }, body.meta);
     if (error) return NextResponse.json({ error }, { status: 400 });
     return NextResponse.json(sessionPayload(session));
   } catch (err) {

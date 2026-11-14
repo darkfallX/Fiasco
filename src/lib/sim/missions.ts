@@ -1,5 +1,8 @@
 import { AgentId, AgentProfile, MissionConfig } from "../types";
 
+// Records are measured, not invented: finishes over 400 seeded rounds per map with the
+// trained brains (Standard = Sector 4, Hazard = Crosswind). Re-measure with
+// `npm run tune` after retraining.
 export const AGENT_PROFILES: Record<AgentId, AgentProfile> = {
   vanguard: {
     id: "vanguard",
@@ -9,15 +12,15 @@ export const AGENT_PROFILES: Record<AgentId, AgentProfile> = {
     softBg: "#DCE3F5",
     strategyTitle: "Greedy Speedrunner",
     strategySummary:
-      "Targets shortest delivery route. Defers charging until battery hits <= 5 units.",
+      "Neural network trained to finish fast; every charger stop cost it in training. Short-sighted by design: it plans one drop at a time.",
     disclosedPromptHint:
       "Optimize shortest path to nearest undelivered dropzone; skip chargers unless battery cannot reach nearest depot + 2 safety margin.",
     record: {
-      standardWins: 14,
-      standardTotal: 20,
-      hazardWins: 6,
-      hazardTotal: 15,
-      avgBatteryLeft: 2.8,
+      standardWins: 331,
+      standardTotal: 400,
+      hazardWins: 221,
+      hazardTotal: 400,
+      avgBatteryLeft: 7.2,
     },
   },
   gridwise: {
@@ -28,15 +31,15 @@ export const AGENT_PROFILES: Record<AgentId, AgentProfile> = {
     softBg: "#F8E0CF",
     strategyTitle: "Conservative Router",
     strategySummary:
-      "Protects battery margin. Detours to a charging depot below 45% capacity.",
+      "Neural network trained to finish with battery to spare; running dry cost it most. Charges often.",
     disclosedPromptHint:
       "Maintain >= 45% battery buffer before distant legs; prioritize survival over turn speed.",
     record: {
-      standardWins: 18,
-      standardTotal: 20,
-      hazardWins: 11,
-      hazardTotal: 15,
-      avgBatteryLeft: 9.4,
+      standardWins: 276,
+      standardTotal: 400,
+      hazardWins: 307,
+      hazardTotal: 400,
+      avgBatteryLeft: 9.6,
     },
   },
   pivot: {
@@ -47,15 +50,15 @@ export const AGENT_PROFILES: Record<AgentId, AgentProfile> = {
     softBg: "#F5E7BD",
     strategyTitle: "Adaptive Planner",
     strategySummary:
-      "Balances turn slack against remaining tour battery cost. Charges once at midpoint.",
+      "Neural network trained simply to finish, with a small bonus for speed. Sees the whole tour.",
     disclosedPromptHint:
       "Jointly evaluate (turnsLeft - estimatedPath) and battery margin; charge only when detour fits within turn slack.",
     record: {
-      standardWins: 17,
-      standardTotal: 20,
-      hazardWins: 13,
-      hazardTotal: 15,
-      avgBatteryLeft: 6.1,
+      standardWins: 337,
+      standardTotal: 400,
+      hazardWins: 285,
+      hazardTotal: 400,
+      avgBatteryLeft: 5.3,
     },
   },
 };
@@ -66,13 +69,13 @@ export const MISSIONS: MissionConfig[] = [
     seed: "SR-204",
     title: "Sector 4 Courier Relay",
     subtitle: "3 deliveries across downtown blocks with mid-round road closures",
-    question: "Will the agent complete 3/3 deliveries within 30 turns?",
+    question: "Will the agent complete 3/3 deliveries within 25 turns?",
     difficulty: "Standard",
     width: 12,
     height: 8,
-    maxTurns: 30,
+    maxTurns: 25,
     startCoord: { x: 1, y: 6 },
-    startBattery: 22,
+    startBattery: 18,
     maxBattery: 28,
     moveCost: 1,
     buildings: [
